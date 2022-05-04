@@ -1,0 +1,196 @@
+-- 220504 데이터무결성(PK/FK) 실습
+
+-- 제약 조건(CONSTRAINT)
+-- 테이블의 컬럼에 유효하지 않는 값을 걸러내기 위해 걸어주는 것
+
+-- [ 무결성 제약 조건 ]
+
+-- 1. NOT NULL 조건
+CREATE TABLE CUSTOMER(
+      ID VARCHAR2(20) NOT NULL, -- NOT NULL 걸면 NULL값이 못들어오게 막음
+      PWD VARCHAR2(20) NOT NULL,
+      NAME VARCHAR2(20) NOT NULL,
+      PHONE VARCHAR2(30),
+      ADDRESS VARCHAR2(100)
+);
+
+-- NOT NULL INSERT 테스트
+-- NOT NULL 제약조건이 테이블 생성 시 사용하였으므로, 실행 시 삽입할 수 없다는 오류 발생
+INSERT INTO CUSTOMER
+VALUES (NULL, NULL, NULL, '010-1111-1111', 'BUSAN');
+
+-- 2. UNIQUE 조건 : 테이블의 컬럼에 데이터가 무조건 유일한 값만 들어갈 수 있게 함
+CREATE TABLE CUSTOMER2(
+      ID VARCHAR2(20) UNIQUE, 
+      PWD VARCHAR2(20) NOT NULL,
+      NAME VARCHAR2(20) NOT NULL,
+      PHONE VARCHAR2(30),
+      ADDRESS VARCHAR2(100)
+);
+
+-- NULL : UNIQUE 제약 조건에 위반되지 않음
+INSERT INTO CUSTOMER2
+VALUES('1', '1111', '홍길동', '010-1111-1111', 'BUSAN');
+
+-- 위의 ID '1'과 아래의 ID '1'이 중복된 상태
+-- UNIQUE를 준 ID값이 중복되게 추가하면 무결성 제약 조건 위배 오류 발생
+INSERT INTO CUSTOMER2
+VALUES('1', '1111', '이순신', '010-1111-1111', 'BUSAN');
+
+-- 제약조건에 이름을 지정할 수 없음
+CREATE TABLE CUSTOMER3(
+      ID VARCHAR2(20) CONSTRAINT UK_ID UNIQUE, 
+      PWD VARCHAR2(20) NOT NULL,
+      NAME VARCHAR2(20) NOT NULL,
+      PHONE VARCHAR2(30),
+      ADDRESS VARCHAR2(100)
+);
+
+-- 딕셔너리 목록에서 제약 조건 확인 가능
+SELECT * FROM USER_CONSTRAINTS
+WHERE TABLE_NAME = 'CUSTOMER3';
+
+-- 3. ***** PRIMARY KEY  조건 : 매우중요 *****
+-- UNIQUE + NOT NULL 효과 : 유일한 값 + NOT NULL 조건 + INDEX 생성(자동)
+CREATE TABLE CUSTOMER4(
+      ID VARCHAR2(20), 
+      PWD VARCHAR2(20) NOT NULL,
+      NAME VARCHAR2(20) NOT NULL,
+      PHONE VARCHAR2(30),
+      ADDRESS VARCHAR2(100),
+      CONSTRAINT PK_ID PRIMARY KEY(ID)
+);
+
+-- PK_ID에 PRIMARY KEY(ID)가 걸려 있는 상태이므로,
+-- ID를 1로 주었을 때, 그 뒤 추가하는 내용이 NULL이나 1은 오류 발생
+INSERT INTO CUSTOMER4
+VALUES(NULL, '1111', '이순신', '010-1111-1111', 'BUSAN');
+
+INSERT INTO CUSTOMER4
+VALUES('1', '1111', '이순신', '010-1111-1111', 'BUSAN');
+
+-- 4. FOREIGN KEY 조건 : 참조되는 테이블에 컬럼 값이 항상 존재해야 함 (중요)**
+-- 부모테이블(ID: 1, 2, 3) - 자식테이블(ID: 1, 2, 3)
+-- EX) 부모테이블 : 부서(영업, 기술, 운영) - 자식테이블(영업, 기술, 운영) : 직원 => FK (참조 무결성)
+-- EX) 부서테이블 :
+SELECT * FROM DEPT;
+
+-- FK 테스트 테이블
+CREATE TABLE EMP_SECOND (
+       ENO NUMBER(4) CONSTRAINT PK_ENO PRIMARY KEY,
+       ENAME VARCHAR2(10),
+       JOB VARCHAR2(9),
+       DNO NUMBER(2) CONSTRAINT FK_DNO REFERENCES DEPT
+);
+
+INSERT INTO EMP_SECOND(ENO, ENAME, DNO)
+VALUES(8000, 'LEE', 40); --DEPT 컬럼에 DNO가 50은 없으므로 50으로 추가할 시 제약 조건에 위배, 40은 있으므로 추가 가능
+
+-- 5. DEFAULT 제약 조건
+-- 컬럼에 데이터가 아무런 값이 입력되지 않았을 때 디폴트로 지정된 값이 입력됨
+CREATE TABLE EMP_THIRD (
+       ENO NUMBER(4) CONSTRAINT PK_ENO2 PRIMARY KEY,
+       ENAME VARCHAR2(10),
+       SALARY NUMBER(7,2) DEFAULT 1000
+);
+
+-- DEFAULT 테스트
+INSERT INTO EMP_THIRD(ENO, ENAME)
+VALUES(8000, '홍길동');
+
+-- 데이터 테스트
+SELECT * FROM EMP_THIRD;
+
+-- 테이블 정리
+SELECT TABLE_NAME FROM USER_TABLES;
+
+-- 새로 시작
+-- EMP_COPY 생성
+CREATE TABLE EMP_COPY
+AS
+SELECT *
+FROM EMP;
+
+-- DEPT_COPY 생성
+CREATE TABLE DEPT_COPY
+AS
+SELECT *
+FROM DEPT;
+
+-- 테이블 생성 후 제약 조건 걸기
+-- EMP_COPY PRIMARY KEY 생성
+ALTER TABLE EMP_COPY
+ADD CONSTRAINT PK_EMP_COPY_ENO PRIMARY KEY(EMPNO); 
+
+-- DEPT_COPY PRIMARY KEY 생성
+ALTER TABLE DEPT_COPY
+ADD CONSTRAINT PK_EMP_COPY_ENO PRIMARY KEY(EMPNO);
+
+SELECT * FROM USER_CONSTRAINTS
+WHERE TABLE_NAME = 'EMP_COPY';
+
+-- FOREIGN KEY 생성
+ALTER TABLE EMP_COPY
+ADD CONSTRAINT FK_EMP_COPY_DNO 
+FOREIGN KEY(DEPTNO) REFERENCES DEPT_COPY(DEPTNO);
+
+-- 제약 조건이 생성된 후 삭제하기
+-- 에러) 먼저 자식테이블의 FOREIGN KEY를 제거하고
+--         부모테이블의 PRIMARY KEY를 제거해야한다
+ALTER TABLE DEPT_COPY
+DROP PRIMARY KEY; -- 에러
+
+-- 전체 삭제 명령 기능 ( CASCADE )
+-- PRIMARY KEY와 동시에 자식테이블의 FOREIGN KEY를 찾아서 삭제
+ALTER TABLE DEPT_COPY
+DROP PRIMARY KEY CASCADE;
+
+SELECT * FROM USER_CONSTRAINT
+WHERE TABLE_NAME = 'EMP_COPY';
+
+-- [ 제약조건 연습문제 ]
+-- 연습 1) EMP 테이블의 구조를 복사하여 EMP_SAMPLE 테이블 생성하기
+--           사원 테이블의 사원 번호 컬럼에 테이블 레벨로 PRIMARY KEY 제약 조건을 지정하되,
+--           제약 조건 이름은 PK_MY_EMP
+CREATE TABLE EMP_SAMPLE
+AS
+SELECT *
+FROM EMP
+WHERE 1=2;
+
+-- 기본 키(PRIMARY KEY) 생성
+ALTER TABLE EMP_SAMPLE
+ADD CONSTRAINT PK_MY_EMP PRIMARY KEY(EMPNO);
+
+-- 제약조건 보는 딕셔너리 SQL문
+SELECT * FROM USER_CONSTRAINTS
+WHERE TABLE_NAME = 'EMP_COPY';
+
+-- 제약조건에 따른 테이블, 컬럼을 보는 SQL문
+SELECT B.TABLE_NAME, A.COLUMN_NAME, B.CONSTRAINT_TYPE
+FROM USER_CONS_COLUMNS A,
+         USER_CONSTRAINTS B
+WHERE A.CONSTRAINT_NAME = B.CONSTRAINT_NAME
+ORDER BY B.TABLE_NAME;
+
+-- 연습 2) DEPT 테이블의 구조를 복사하여 DEPT_SAMPLE 테이블 생성하기
+--           부서번호 컬럼(DNO)에 PRIMARY KEY 제약 조건을 지정하되,
+--           제약 조건 이름은 PK_MY_DEPT
+CREATE TABLE DEPT_SAMPLE
+AS
+SELECT *
+FROM DEPT
+WHERE 1=2;
+
+ALTER TABLE DEPT_SAMPLE
+ADD CONSTRAINT PK_MY_DEPT PRIMARY KEY(DEPTNO);
+
+-- 제약조건 보는 딕셔너리 SQL문
+SELECT * FROM USER_CONSTRAINTS
+WHERE TABLE_NAME = 'DEPT_COPY';
+
+-- 연습 3) 사원 테이블의 부서번호 컬럼에 존재하지 않는 부서의 사원이 배정되지 않도록
+--           외래키(FOREIGN KEY) 제약조건을 지정하되, FK_MY_DEPT_EMP로
+ALTER TABLE EMP_SAMPLE
+ADD CONSTRAINT FK_MY_DEPT_EMP
+FOREIGN KEY(DEPTNO) REFERENCES DEPT(DEPTNO);
